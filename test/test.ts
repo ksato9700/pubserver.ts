@@ -4,12 +4,12 @@ import {make_app} from '../src/app';
 
 let server: supertest.SuperTest<supertest.Test>;
 
-test.before(async t => {
+test.before(async (t) => {
   const app = await make_app();
-  server = supertest.default(app.listen(0))
+  server = supertest.default(app.listen(0));
 });
 
-test('app:single_book', async t => {
+test('app:single_book', async (t) => {
   t.plan(35);
   let res = await server
     .get('/api/v0.1/books/123');
@@ -54,4 +54,424 @@ test('app:single_book', async t => {
 
   t.is(res.status, 304);
   t.is(res.header['content-type'], undefined);
+});
+
+test('app:single_book_notfuond', async (t) => {
+  t.plan(1);
+
+  const res = await server
+    .get('/api/v0.1/books/12345');
+
+  t.is(res.status, 404);
+});
+
+test('app:multiple_books', async (t) => {
+  t.plan(3);
+
+  const res = await server
+    .get('/api/v0.1/books');
+
+  t.is(res.status, 200);
+  t.is(res.header['content-type'], 'application/json; charset=utf-8');
+  t.is(res.body.length, 100);
+});
+
+test('app:multiple_books_title', async (t) => {
+  t.plan(12);
+
+  let res = await server
+    .get('/api/v0.1/books')
+    .query({title: '吾輩は猫である'});
+
+  t.is(res.status, 200);
+  t.is(res.header['content-type'], 'application/json; charset=utf-8');
+  t.is(res.body.length, 1);
+  t.is(res.body[0].book_id, 789);
+  t.is(res.body[0].title, '吾輩は猫である');
+
+  res = await server
+    .get('/api/v0.1/books')
+    .query({title: 'あいびき'});
+
+  t.is(res.status, 200);
+  t.is(res.header['content-type'], 'application/json; charset=utf-8');
+  t.is(res.body.length, 2);
+  t.is(res.body[0].book_id, 4843);
+  t.is(res.body[0].title, 'あいびき');
+  t.is(res.body[1].book_id, 5);
+  t.is(res.body[1].title, 'あいびき');
+
+});
+
+test('app:multiple_books_author', async (t) => {
+  t.plan(5);
+
+  const res = await server
+    .get('/api/v0.1/books')
+    .query({author: '素木しづ'});
+
+  t.is(res.status, 200);
+  t.is(res.header['content-type'], 'application/json; charset=utf-8');
+  t.is(res.body.length, 12);
+  t.is(res.body[0].book_id, 48628);
+  t.is(res.body[0].title, '追憶');
+});
+
+test('app:multiple_books_author_first_last_only', async (t) => {
+  t.plan(10);
+
+  let res = await server
+      .get('/api/v0.1/books')
+      .query({author: '芥川'});
+
+  t.is(res.status, 200);
+  t.is(res.header['content-type'], 'application/json; charset=utf-8');
+  t.is(res.body.length, 100);
+  t.is(res.body[0].book_id, 59016);
+  t.is(res.body[0].title, ﻿'現代作家は古典をどうみるか');
+
+  res = await server
+      .get('/api/v0.1/books')
+      .query({author: '独歩'});
+
+  t.is(res.status, 200);
+  t.is(res.header['content-type'], 'application/json; charset=utf-8');
+  t.is(res.body.length, 45);
+  t.is(res.body[0].book_id, 56412);
+  t.is(res.body[0].title, '日の出');
+});
+
+test('app:books_fields', async (t) => {
+  t.plan(9);
+
+  const res = await server
+    .get('/api/v0.1/books')
+    .query({title: '鼻', fields: ['title', 'release_date']});
+
+  t.is(res.status, 200);
+  t.is(res.header['content-type'], 'application/json; charset=utf-8');
+  t.is(res.body.length, 2);
+  t.is(res.body[0].book_id, 372);
+  t.is(res.body[0].title, '鼻');
+  t.is(res.body[0].release_date, '1999-01-26T00:00:00.000Z');
+  t.is(res.body[1].book_id, 42);
+  t.is(res.body[1].title, '鼻');
+  t.is(res.body[1].release_date, '1997-11-04T00:00:00.000Z');
+});
+
+test('app:books_limit_skip', async (t) => {
+  t.plan(15);
+
+  let res = await server
+      .get('/api/v0.1/books')
+    .query({title: '/花/', limit: 200});
+
+  t.is(res.status, 200);
+  t.is(res.header['content-type'], 'application/json; charset=utf-8');
+  t.true(res.body.length >= 186);
+
+  res = await server
+    .get('/api/v0.1/books')
+    .query({title: '/花/', limit: 20, skip: 100, sort: '{"release_date": 1}'});
+
+  t.is(res.status, 200);
+  t.is(res.header['content-type'], 'application/json; charset=utf-8');
+  t.is(res.body.length, 20);
+
+  t.is(res.body[0].book_id, 48246);
+  t.is(res.body[0].title, '白い花');
+  t.is(res.body[0].release_date, '2008-07-15T00:00:00.000Z');
+
+  res = await server
+    .get('/api/v0.1/books')
+    .query({
+      limit: 10,
+      skip: 180,
+      sort: '{"release_date": 1}',
+      title: '/花/',
+    });
+
+  t.is(res.status, 200);
+  t.is(res.header['content-type'], 'application/json; charset=utf-8');
+  t.true(res.body.length >= 5 && res.body.length <= 10);
+
+  t.is(res.body[0].book_id, 55773);
+  t.is(res.body[0].title, '「雪と花火」献辞');
+  t.is(res.body[0].release_date, '2017-02-12T00:00:00.000Z');
+
+});
+test('app:books_limit_after', async (t) => {
+  t.plan(6);
+
+  const res = await server
+    .get('/api/v0.1/books')
+    .query({
+      after: '2009-01-01',
+      limit: 50,
+      sort: '{"release_date": 1}',
+      title: '/月/',
+    });
+
+  t.is(res.status, 200);
+  t.is(res.header['content-type'], 'application/json; charset=utf-8');
+  t.is(res.body.length, 50);
+
+  t.is(res.body[0].book_id, 49545);
+  t.is(res.body[0].title, '正月の思い出');
+  t.is(res.body[0].release_date, '2009-01-10T00:00:00.000Z');
+
+});
+
+test('app:books_card', async (t) => {
+  t.plan(5);
+
+  const path = '/api/v0.1/books/123/card';
+  let res = await server
+      .get(path);
+
+  t.is(res.status, 200);
+  t.is(res.header['content-type'], 'text/html; charset=utf-8');
+  t.is(res.text.length, 8733);
+
+  res = await server
+    .get(path)
+    .set('If-None-Match', res.header.etag);
+
+  t.is(res.status, 304);
+  t.is(res.text.length, 0);
+});
+
+test('app:books_content_text', async (t) => {
+  t.plan(5);
+
+  const path = '/api/v0.1/books/123/content';
+  let res = await server
+      .get(path)
+      .query({format: 'txt'});
+
+  t.is(res.status, 200);
+  t.is(res.header['content-type'], 'text/plain; charset=shift_jis');
+  t.is(res.text.length, 7982);
+
+  res = await server
+    .get(path)
+    .set('If-None-Match', res.header.etag);
+
+  t.is(res.status, 304);
+  t.is(res.text.length, 0);
+});
+
+test('app:books_content_html', async (t) => {
+  t.plan(5);
+
+  const path = '/api/v0.1/books/123/content';
+  let res = await server
+      .get(path)
+      .query({format: 'html'});
+
+  t.is(res.status, 200);
+  t.is(res.header['content-type'], 'text/html; charset=shift_jis');
+  t.is(res.text.length, 14546);
+
+  res = await server
+    .get(path)
+    .set('If-None-Match', res.header.etag)
+    .query({format: 'html'});
+
+  t.is(res.status, 304);
+  t.is(res.text.length, 0);
+});
+
+test('app:persons', async (t) => {
+  t.plan(5);
+
+  const path = '/api/v0.1/persons';
+  let res = await server
+      .get(path);
+
+  t.is(res.status, 200);
+  t.is(res.header['content-type'], 'application/json; charset=utf-8');
+  t.true(res.body.length >= 998);
+
+  res = await server
+    .get(path)
+    .set('If-None-Match', res.header.etag);
+
+  t.is(res.status, 304);
+  t.is(res.text.length, 0);
+});
+
+test('app:persons_name', async (t) => {
+  t.plan(20);
+
+  const path = '/api/v0.1/persons';
+  let res = await server
+    .get(path)
+    .query({name: '鈴木'});
+
+  t.is(res.status, 200);
+  t.is(res.header['content-type'], 'application/json; charset=utf-8');
+  t.is(res.body.length, 6);
+
+  res = await server
+      .get(path)
+      .query({name: '鈴木梅太郎'});
+
+  t.is(res.status, 200);
+  t.is(res.header['content-type'], 'application/json; charset=utf-8');
+  t.is(res.body.length, 1);
+  t.is(res.body[0].person_id, 957);
+  t.is(res.body[0].last_name, '鈴木');
+  t.is(res.body[0].first_name, '梅太郎');
+  t.is(res.body[0].last_name_yomi, 'すずき');
+  t.is(res.body[0].first_name_yomi, 'うめたろう');
+  t.is(res.body[0].last_name_sort, 'すすき');
+  t.is(res.body[0].first_name_sort, 'うめたろう');
+  t.is(res.body[0].last_name_roman, 'Suzuki');
+  t.is(res.body[0].first_name_roman, 'Umetaro');
+  t.is(res.body[0].date_of_birth, '1874-04-07');
+  t.is(res.body[0].date_of_death, '1943-09-20');
+  t.is(res.body[0].author_copyright, false );
+
+  res = await server
+    .get(path)
+    .set('If-None-Match', res.header.etag)
+    .query({name: '鈴木梅太郎'});
+
+  t.is(res.status, 304);
+  t.is(res.text.length, 0);
+});
+
+test('app:persons_name_by_id', async (t) => {
+  t.plan(16);
+
+  const path = '/api/v0.1/persons/1234';
+  let res = await server
+      .get(path);
+
+  t.is(res.status, 200);
+  t.is(res.header['content-type'], 'application/json; charset=utf-8');
+  t.is(res.body.person_id, 1234);
+  t.is(res.body.last_name, '愛知');
+  t.is(res.body.first_name, '敬一');
+  t.is(res.body.last_name_yomi, 'あいち');
+  t.is(res.body.first_name_yomi, 'けいいち');
+  t.is(res.body.last_name_sort, 'あいち');
+  t.is(res.body.first_name_sort, 'けいいち');
+  t.is(res.body.last_name_roman, 'Aichi');
+  t.is(res.body.first_name_roman, 'Keiichi');
+  t.is(res.body.date_of_birth, '1880-07-25');
+  t.is(res.body.date_of_death, '1923-06-23');
+  t.is(res.body.author_copyright, false);
+
+  res = await server
+    .get(path)
+    .set('If-None-Match', res.header.etag);
+
+  t.is(res.status, 304);
+  t.is(res.text.length, 0);
+});
+
+test('app:workers', async (t) => {
+  t.plan(7);
+
+  const path = '/api/v0.1/workers';
+  let res = await server
+      .get(path);
+
+  t.is(res.status, 200);
+  t.is(res.header['content-type'], 'application/json; charset=utf-8');
+  t.true(res.body.length >= 1003);
+  t.true(typeof res.body[0].id === 'number');
+  t.true(typeof res.body[0].name === 'string');
+
+  res = await server
+    .get(path)
+    .set('If-None-Match', res.header.etag);
+
+  t.is(res.status, 304);
+  t.is(res.text.length, 0);
+});
+
+test('app:workers_name', async (t) => {
+  t.plan(10);
+
+  const path = '/api/v0.1/workers';
+  let res = await server
+      .get(path)
+      .query({name: '/高橋/'});
+
+  t.is(res.status, 200);
+  t.is(res.header['content-type'], 'application/json; charset=utf-8');
+  t.true(res.body.length >= 10);
+
+  res = await server
+      .get(path)
+      .query({name: 'しりかげる'});
+
+  t.is(res.status, 200);
+  t.is(res.header['content-type'], 'application/json; charset=utf-8');
+  t.is(res.body.length, 1);
+  t.is(res.body[0].id, 925);
+  t.is(res.body[0].name, 'しりかげる');
+
+  res = await server
+    .get(path)
+    .set('If-None-Match', res.header.etag)
+    .query({name: 'しりかげる'});
+
+  t.is(res.status, 304);
+  t.is(res.text.length, 0);
+});
+
+test('app:workers_name_by_id', async (t) => {
+  t.plan(6);
+
+  const path = '/api/v0.1/workers/1021';
+  let res = await server
+      .get(path);
+
+  t.is(res.status, 200);
+  t.is(res.header['content-type'], 'application/json; charset=utf-8');
+  t.is(res.body.id, 1021);
+  t.is(res.body.name, '高橋征義');
+
+  res = await server
+    .get(path)
+    .set('If-None-Match', res.header.etag);
+
+  t.is(res.status, 304);
+  t.is(res.text.length, 0);
+});
+
+test('app:ranking', async (t) => {
+  t.plan(10);
+
+  const path = '/api/v0.1/ranking/xhtml/2018/05/';
+  const res = await server
+    .get(path);
+
+  t.is(res.status, 200);
+  t.is(res.header['content-type'], 'application/json; charset=utf-8');
+  t.is(res.body.length, 500);
+  const ranking_1 = res.body[0];
+  t.is(ranking_1.book_id, 624);
+  t.is(ranking_1.access, 29323);
+  t.is(ranking_1.title, '山月記');
+  t.is(ranking_1.authors.length, 1);
+  t.is(ranking_1.authors[0], '中島 敦');
+
+  const ranking_104 = res.body[104];
+  t.is(ranking_104.book_id, 622);
+  t.is(ranking_104.access, 1167);
+});
+
+test('app:ranking_not_found', async (t) => {
+  t.plan(1);
+
+  const path = '/api/v0.1/ranking/xhtml/1900/01/';
+  const res = await server
+    .get(path);
+
+  t.is(res.status, 404);
 });
