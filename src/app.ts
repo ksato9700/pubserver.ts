@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import fs from 'fs';
-import {promises as fsp} from 'fs';
+// import { promises as fsp } from 'fs';
 import zlib from 'zlib';
 
 import koabody from 'koa-body';
@@ -13,11 +13,18 @@ import cors from '@koa/cors';
 
 import Koa from 'koa';
 
-import {DB} from './db_mongo';
+import { DB } from './db_mongo';
 
 import redis from 'redis';
 
-import rp from 'request-promise';
+import axios from 'axios';
+const ax = axios.create({
+  headers: {
+    'Accept': '*/*',
+    'User-Agent': 'Mozilla/5.0',
+  },
+  responseType: 'arraybuffer',
+});
 
 import iconv from 'iconv-lite';
 
@@ -51,7 +58,7 @@ const API_ROOT = `/api/${VERSION}`;
 //
 // promisify
 //
-import {promisify} from 'util';
+import { promisify } from 'util';
 
 const zlib_deflate = promisify<string | Buffer, Buffer>(zlib.deflate);
 const zlib_inflate = promisify<string | Buffer, Buffer>(zlib.inflate);
@@ -84,15 +91,15 @@ function return_json(ctx: Koa.Context, doc: object) {
 
 function add_ogp(body: string, title: string, author: string): string {
   const ogp_headers =
-        ['<head prefix="og: http://ogp.me/ns#">',
-         '<meta name="twitter:card" content="summary" />',
-         '<meta property="og:type" content="book">',
-         '<meta property="og:image" content="http://www.aozora.gr.jp/images/top_logo.png">',
-         '<meta property="og:image:type" content="image/png">',
-         '<meta property="og:image:width" content="100">',
-         '<meta property="og:image:height" content="100">',
-         '<meta property="og:description" content="...">',
-         `<meta property="og:title" content="${title}(${author})"`].join('\n');
+    ['<head prefix="og: http://ogp.me/ns#">',
+      '<meta name="twitter:card" content="summary" />',
+      '<meta property="og:type" content="book">',
+      '<meta property="og:image" content="http://www.aozora.gr.jp/images/top_logo.png">',
+      '<meta property="og:image:type" content="image/png">',
+      '<meta property="og:image:width" content="100">',
+      '<meta property="og:image:height" content="100">',
+      '<meta property="og:description" content="...">',
+      `<meta property="og:title" content="${title}(${author})"`].join('\n');
 
   return body.replace(/<head>/, ogp_headers);
 }
@@ -114,39 +121,30 @@ function gen_etag(data: Buffer | string) {
 
 async function get_zipped(db: DB, book_id: number, _: string): Promise<Buffer> {
   const doc = await db.find_one_book(book_id, ['text_url']);
-  const body = await rp.get(doc.text_url,
-                            { encoding: null,
-                              headers: {
-                                'Accept': '*/*',
-                                'User-Agent': 'Mozilla/5.0',
-                              }});
+  const body = (await ax.get(doc.text_url)).data;
   const zip = await JSZip.loadAsync(body);
   const key = Object.keys(zip.files)[0]; // assuming zip has only one text entry
   return zip.file(key).async('nodebuffer');
 }
 
 async function get_ogpcard(db: DB, book_id: number, ext: string): Promise<Buffer> {
-  const doc = await db.find_one_book(book_id, {authors: 1,
-                                               card_url: 1,
-                                               html_url: 1,
-                                               title: 1,
-                                              });
+  const doc = await db.find_one_book(book_id, {
+    authors: 1,
+    card_url: 1,
+    html_url: 1,
+    title: 1,
+  });
   const ext_url = doc[`${ext}_url`];
-  const body = await rp.get(ext_url,
-                            {encoding: null,
-                             headers: {
-                               'Accept': '*/*',
-                               'User-Agent': 'Mozilla/5.0',
-                             }});
+  const body = (await ax.get(ext_url)).data;
   const encoding = encodings[ext];
   const author_name = doc.authors[0].last_name + doc.authors[0].first_name;
   return iconv.encode(rel_to_abs_path(add_ogp(iconv.decode(body, encoding),
-                                              doc.title, author_name),
-                                      ext),
-                      encoding);
+    doc.title, author_name),
+    ext),
+    encoding);
 }
 
-const get_file_method: {[index: string]: (db: DB, n: number, s: string) => Promise<Buffer>} = {
+const get_file_method: { [index: string]: (db: DB, n: number, s: string) => Promise<Buffer> } = {
   card: get_ogpcard,
   html: get_ogpcard,
   txt: get_zipped,
@@ -173,6 +171,7 @@ class MyApp extends Koa {
     this.rc = redis.createClient(redis_url);
     this.rsetex = promisify<string, number, string, string>(this.rc.setex).bind(this.rc);
     this.rget = promisify<string, string>(this.rc.get).bind(this.rc);
+    this.rc.flushall();
   }
 
   public async connect_db() {
@@ -259,7 +258,7 @@ interface Ioptions {
 /// router
 //
 function make_router(app: MyApp) {
-  const router = new Router({prefix: API_ROOT});
+  const router = new Router({ prefix: API_ROOT });
 
   //
   // books
@@ -272,11 +271,13 @@ function make_router(app: MyApp) {
       query.title = re_or_str(req.query.title);
     }
     if (req.query.author) {
-      const persons = await (await app.find_persons (
-        {$where: `var author = "${req.query.author}";` +
-         'this.last_name + this.first_name == author || ' +
-         'this.last_name == author || ' +
-         'this.first_name == author'}));
+      const persons = await (await app.find_persons(
+        {
+          $where: `var author = "${req.query.author}";` +
+            'this.last_name + this.first_name == author || ' +
+            'this.last_name == author || ' +
+            'this.first_name == author'
+        }));
       if (persons.length === 0) {
         ctx.status = 404;
         return;
@@ -285,11 +286,11 @@ function make_router(app: MyApp) {
     }
 
     if (req.query.after) {
-      query.release_date = {$gte: new Date(req.query.after)};
+      query.release_date = { $gte: new Date(req.query.after) };
     }
 
     const options: Ioptions = {};
-    options.sort = req.query.sort ? JSON.parse(req.query.sort) : {release_date: -1};
+    options.sort = req.query.sort ? JSON.parse(req.query.sort) : { release_date: -1 };
     options.limit = req.query.limit ? parseInt(req.query.limit, 10) : DEFAULT_LIMIT;
     if (req.query.skip) {
       options.skip = parseInt(req.query.skip, 10);
@@ -366,8 +367,8 @@ function make_router(app: MyApp) {
         ctx.response.type = content_type[ext] || 'application/octet-stream';
         ctx.body = res.tbuf;
 
-        const wfh = await fsp.open('./a' + book_id + '.' + ext, 'w');
-        await wfh.writeFile(ctx.body, {encoding: 'binary'});
+        // const wfh = await fsp.open('./a' + book_id + '.' + ext, 'w');
+        // await wfh.writeFile(ctx.body, { encoding: 'binary' });
 
       }
     } catch (error) {
@@ -469,7 +470,7 @@ function make_router(app: MyApp) {
     console.log(decodeURIComponent(ctx.req.url));
 
     const docs = await app.find_ranking(ctx.params.type,
-                                        ctx.params.year + '_' + ctx.params.month);
+      ctx.params.year + '_' + ctx.params.month);
     if (docs.length > 0) {
       return_json(ctx, docs);
     } else {
@@ -490,7 +491,7 @@ export async function make_app(): Promise<Koa> {
   //
   app.use(cors());
   app.use(compress());
-  app.use(morgan('combined', { stream: accessLog}));
+  app.use(morgan('combined', { stream: accessLog }));
   app.use(koabody());
 
   await app.connect_db();
@@ -500,7 +501,7 @@ export async function make_app(): Promise<Koa> {
     .use(router.routes())
     .use(router.allowedMethods());
 
-  app.use(serve({rootDir: './public', rootPath: API_ROOT}));
+  app.use(serve({ rootDir: './public', rootPath: API_ROOT }));
 
   app.use((ctx: Koa.Context) => {
     ctx.body = 'Hello, Koa from TypeScript!';
