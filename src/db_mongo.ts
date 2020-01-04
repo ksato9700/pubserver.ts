@@ -14,9 +14,9 @@ const mongo_url = `mongodb://${mongodb_credential}${mongodb_host}:${mongodb_port
 function adjust_options(options: mongodb.FindOneOptions = {}) {
   if (Array.isArray(options.projection)) {
     options.projection = Object.assign(
-      {_id: 0}, ... (options.projection || []).map((e) => ({[e]: 1})));
+      { _id: 0 }, ... (options.projection || []).map((e) => ({ [e]: 1 })));
   } else {
-    options.projection = Object.assign({_id: 0}, options.projection || {});
+    options.projection = Object.assign({ _id: 0 }, options.projection || {});
   }
   return options;
 }
@@ -36,7 +36,7 @@ export class DB {
   private db: mongodb.Db;
 
   public async connect() {
-    return mongodb.MongoClient.connect(mongo_url, {useNewUrlParser: true})
+    return mongodb.MongoClient.connect(mongo_url, { useNewUrlParser: true, useUnifiedTopology: true })
       .then((client) => {
         this.db = client.db();
       });
@@ -47,7 +47,7 @@ export class DB {
   }
 
   public find_one_book(book_id: number, options?: object) {
-    return this._find_one('books', {book_id}, options);
+    return this._find_one('books', { book_id }, options);
   }
 
   public find_persons(query: object, options: object) {
@@ -55,7 +55,7 @@ export class DB {
   }
 
   public find_one_person(person_id: number, options?: object) {
-    return this._find_one('persons', {person_id}, options);
+    return this._find_one('persons', { person_id }, options);
   }
 
   public find_workers(query: object, options: object) {
@@ -63,7 +63,7 @@ export class DB {
   }
 
   public find_one_worker(worker_id: number, options?: object) {
-    return this._find_one('workers', {id: worker_id}, options);
+    return this._find_one('workers', { id: worker_id }, options);
   }
 
   public find_ranking(rtype: string, year_month: string) {
@@ -72,10 +72,10 @@ export class DB {
       year_month,
     };
     const options = {
-      projection: {year_month: 0},
-      sort: {access: -1},
+      projection: { year_month: 0 },
+      sort: { access: -1 },
     };
-    const book_options = {book_title: 1, authors: 1};
+    const book_options = { book_title: 1, authors: 1 };
     return this._find(collection, query, options)
       .then((r) => {
         return Promise.all(r.map((e) => {

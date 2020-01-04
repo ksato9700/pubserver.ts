@@ -1,6 +1,6 @@
 import test from 'ava';
 import * as supertest from 'supertest';
-import {make_app} from '../src/app';
+import { make_app } from '../src/app';
 
 let server: supertest.SuperTest<supertest.Test>;
 
@@ -81,7 +81,7 @@ test('app:multiple_books_title', async (t) => {
 
   let res = await server
     .get('/api/v0.1/books')
-    .query({title: '吾輩は猫である'});
+    .query({ title: '吾輩は猫である' });
 
   t.is(res.status, 200);
   t.is(res.header['content-type'], 'application/json; charset=utf-8');
@@ -91,7 +91,7 @@ test('app:multiple_books_title', async (t) => {
 
   res = await server
     .get('/api/v0.1/books')
-    .query({title: 'あいびき'});
+    .query({ title: 'あいびき' });
 
   t.is(res.status, 200);
   t.is(res.header['content-type'], 'application/json; charset=utf-8');
@@ -108,7 +108,7 @@ test('app:multiple_books_author', async (t) => {
 
   const res = await server
     .get('/api/v0.1/books')
-    .query({author: '素木しづ'});
+    .query({ author: '素木しづ' });
 
   t.is(res.status, 200);
   t.is(res.header['content-type'], 'application/json; charset=utf-8');
@@ -121,18 +121,18 @@ test('app:multiple_books_author_first_last_only', async (t) => {
   t.plan(10);
 
   let res = await server
-      .get('/api/v0.1/books')
-      .query({author: '芥川'});
+    .get('/api/v0.1/books')
+    .query({ author: '芥川' });
 
   t.is(res.status, 200);
   t.is(res.header['content-type'], 'application/json; charset=utf-8');
   t.is(res.body.length, 100);
   t.is(res.body[0].book_id, 59016);
-  t.is(res.body[0].title, ﻿'現代作家は古典をどうみるか');
+  t.is(res.body[0].title, '現代作家は古典をどうみるか');
 
   res = await server
-      .get('/api/v0.1/books')
-      .query({author: '独歩'});
+    .get('/api/v0.1/books')
+    .query({ author: '独歩' });
 
   t.is(res.status, 200);
   t.is(res.header['content-type'], 'application/json; charset=utf-8');
@@ -146,7 +146,7 @@ test('app:books_fields', async (t) => {
 
   const res = await server
     .get('/api/v0.1/books')
-    .query({title: '鼻', fields: ['title', 'release_date']});
+    .query({ title: '鼻', fields: ['title', 'release_date'] });
 
   t.is(res.status, 200);
   t.is(res.header['content-type'], 'application/json; charset=utf-8');
@@ -163,8 +163,8 @@ test('app:books_limit_skip', async (t) => {
   t.plan(15);
 
   let res = await server
-      .get('/api/v0.1/books')
-    .query({title: '/花/', limit: 200});
+    .get('/api/v0.1/books')
+    .query({ title: '/花/', limit: 200 });
 
   t.is(res.status, 200);
   t.is(res.header['content-type'], 'application/json; charset=utf-8');
@@ -172,7 +172,7 @@ test('app:books_limit_skip', async (t) => {
 
   res = await server
     .get('/api/v0.1/books')
-    .query({title: '/花/', limit: 20, skip: 100, sort: '{"release_date": 1}'});
+    .query({ title: '/花/', limit: 20, skip: 100, sort: '{"release_date": 1}' });
 
   t.is(res.status, 200);
   t.is(res.header['content-type'], 'application/json; charset=utf-8');
@@ -227,7 +227,7 @@ test('app:books_card', async (t) => {
 
   const path = '/api/v0.1/books/123/card';
   let res = await server
-      .get(path);
+    .get(path);
 
   t.is(res.status, 200);
   t.is(res.header['content-type'], 'text/html; charset=utf-8');
@@ -246,8 +246,8 @@ test('app:books_content_text', async (t) => {
 
   const path = '/api/v0.1/books/123/content';
   let res = await server
-      .get(path)
-      .query({format: 'txt'});
+    .get(path)
+    .query({ format: 'txt' });
 
   t.is(res.status, 200);
   t.is(res.header['content-type'], 'text/plain; charset=shift_jis');
@@ -266,17 +266,17 @@ test('app:books_content_html', async (t) => {
 
   const path = '/api/v0.1/books/123/content';
   let res = await server
-      .get(path)
-      .query({format: 'html'});
+    .get(path)
+    .query({ format: 'html' });
 
   t.is(res.status, 200);
   t.is(res.header['content-type'], 'text/html; charset=shift_jis');
-  t.is(res.text.length, 14546);
+  t.is(res.text.length, 14615);
 
   res = await server
     .get(path)
     .set('If-None-Match', res.header.etag)
-    .query({format: 'html'});
+    .query({ format: 'html' });
 
   t.is(res.status, 304);
   t.is(res.text.length, 0);
@@ -287,7 +287,7 @@ test('app:persons', async (t) => {
 
   const path = '/api/v0.1/persons';
   let res = await server
-      .get(path);
+    .get(path);
 
   t.is(res.status, 200);
   t.is(res.header['content-type'], 'application/json; charset=utf-8');
@@ -307,15 +307,15 @@ test('app:persons_name', async (t) => {
   const path = '/api/v0.1/persons';
   let res = await server
     .get(path)
-    .query({name: '鈴木'});
+    .query({ name: '鈴木' });
 
   t.is(res.status, 200);
   t.is(res.header['content-type'], 'application/json; charset=utf-8');
-  t.is(res.body.length, 6);
+  t.is(res.body.length, 7);
 
   res = await server
-      .get(path)
-      .query({name: '鈴木梅太郎'});
+    .get(path)
+    .query({ name: '鈴木梅太郎' });
 
   t.is(res.status, 200);
   t.is(res.header['content-type'], 'application/json; charset=utf-8');
@@ -331,12 +331,12 @@ test('app:persons_name', async (t) => {
   t.is(res.body[0].first_name_roman, 'Umetaro');
   t.is(res.body[0].date_of_birth, '1874-04-07');
   t.is(res.body[0].date_of_death, '1943-09-20');
-  t.is(res.body[0].author_copyright, false );
+  t.is(res.body[0].author_copyright, false);
 
   res = await server
     .get(path)
     .set('If-None-Match', res.header.etag)
-    .query({name: '鈴木梅太郎'});
+    .query({ name: '鈴木梅太郎' });
 
   t.is(res.status, 304);
   t.is(res.text.length, 0);
@@ -347,7 +347,7 @@ test('app:persons_name_by_id', async (t) => {
 
   const path = '/api/v0.1/persons/1234';
   let res = await server
-      .get(path);
+    .get(path);
 
   t.is(res.status, 200);
   t.is(res.header['content-type'], 'application/json; charset=utf-8');
@@ -377,7 +377,7 @@ test('app:workers', async (t) => {
 
   const path = '/api/v0.1/workers';
   let res = await server
-      .get(path);
+    .get(path);
 
   t.is(res.status, 200);
   t.is(res.header['content-type'], 'application/json; charset=utf-8');
@@ -398,16 +398,16 @@ test('app:workers_name', async (t) => {
 
   const path = '/api/v0.1/workers';
   let res = await server
-      .get(path)
-      .query({name: '/高橋/'});
+    .get(path)
+    .query({ name: '/高橋/' });
 
   t.is(res.status, 200);
   t.is(res.header['content-type'], 'application/json; charset=utf-8');
   t.true(res.body.length >= 10);
 
   res = await server
-      .get(path)
-      .query({name: 'しりかげる'});
+    .get(path)
+    .query({ name: 'しりかげる' });
 
   t.is(res.status, 200);
   t.is(res.header['content-type'], 'application/json; charset=utf-8');
@@ -418,7 +418,7 @@ test('app:workers_name', async (t) => {
   res = await server
     .get(path)
     .set('If-None-Match', res.header.etag)
-    .query({name: 'しりかげる'});
+    .query({ name: 'しりかげる' });
 
   t.is(res.status, 304);
   t.is(res.text.length, 0);
@@ -429,7 +429,7 @@ test('app:workers_name_by_id', async (t) => {
 
   const path = '/api/v0.1/workers/1021';
   let res = await server
-      .get(path);
+    .get(path);
 
   t.is(res.status, 200);
   t.is(res.header['content-type'], 'application/json; charset=utf-8');
